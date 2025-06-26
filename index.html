@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Exped Map - Map Gunung Indonesia</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+  <style>
+    body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+  background-color: #f2f2f2;
+}
+
+header {
+  background-color: #2e3a59;
+  color: white;
+  padding: 15px;
+  text-align: center;
+}
+
+.container {
+  max-width: 800px;
+  margin: auto;
+  background: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+input, textarea, button {
+  display: block;
+  width: 100%;
+  margin-bottom: 15px;
+  padding: 10px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
+
+button {
+  background-color: #2e3a59;
+  color: white;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+button:hover {
+  background-color: #1f2b45;
+}
+
+#user-info {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+#user-info img {
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+}
+
+.map-item {
+  border: 1px solid #ccc;
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.map-top {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
+.map-top img {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.map-info h3 {
+  margin: 0;
+}
+
+.map-screenshots {
+  overflow-x: auto;
+  white-space: nowrap;
+  padding-top: 10px;
+}
+
+.map-screenshots img {
+  width: 100px;
+  height: 70px;
+  margin-right: 10px;
+  object-fit: cover;
+  border-radius: 8px;
+  display: inline-block;
+}
+
+.map-actions {
+  margin-top: 10px;
+  text-align: right;
+}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Exped Map</h1>
+    <p>Platform Pemetaan Gunung Indonesia di Roblox</p>
+  </header>
+  <div class="container">
+    <div id="user-info">
+      <button id="loginBtn">Login dengan Google</button>
+      <div id="user-profile" style="display:none;">
+        <img id="user-photo" src="" />
+        <p id="user-name"></p>
+        <input id="custom-name" placeholder="Nama Studio Anda" />
+        <input type="file" id="custom-photo" accept="image/*" />
+        <button onclick="updateProfile()">Simpan Profil</button>
+        <button onclick="logout()">Logout</button>
+      </div>
+    </div>
+
+<h2>Upload Map Gunung</h2>
+<input type="text" id="title" placeholder="Judul Map" />
+<input type="text" id="gunung" placeholder="Nama Gunung" />
+<input type="text" id="provinsi" placeholder="Provinsi" />
+<textarea id="deskripsi" placeholder="Deskripsi Singkat"></textarea>
+<input type="text" id="robloxLink" placeholder="Link Roblox Map" />
+
+<!-- Gambar Icon Gunung -->
+<label>Icon Gunung (1 gambar)</label>
+<input type="file" id="iconImage" accept="image/*" />
+
+<!-- Screenshot Gunung -->
+<label>Screenshot Gunung (bisa lebih dari 1)</label>
+<input type="file" id="screenshots" accept="image/*" multiple />
+
+<button onclick="uploadMap()">Upload Map</button>
+
+    <h2>Map Saya</h2>
+    <div id="user-maps"></div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAqeRya1bAWMIrO-N2frDheI5EFzNGCJss",
+      authDomain: "xtkj2database.firebaseapp.com",
+      databaseURL: "https://xtkj2database-default-rtdb.firebaseio.com",
+      projectId: "xtkj2database",
+      storageBucket: "xtkj2database.appspot.com",
+      messagingSenderId: "568446372958",
+      appId: "1:568446372958:web:4dbcc010084ac91d6db8cf",
+      measurementId: "G-6BCV21L0TE"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    const storage = firebase.storage();
+
+    auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        document.getElementById('loginBtn').style.display = 'none';
+        document.getElementById('user-profile').style.display = 'block';
+
+        const doc = await db.collection('users').doc(user.uid).get();
+        const studioName = doc.exists ? doc.data().studioName : user.displayName;
+        const studioPhoto = doc.exists ? doc.data().studioPhoto : user.photoURL;
+
+        document.getElementById('user-name').innerText = studioName;
+        document.getElementById('user-photo').src = studioPhoto;
+        document.getElementById('custom-name').value = studioName;
+
+        loadUserMaps(user.uid);
+      }
+    });
+
+    document.getElementById('loginBtn').addEventListener('click', () => {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      auth.signInWithPopup(provider).then(async result => {
+        const user = result.user;
+        const doc = await db.collection('users').doc(user.uid).get();
+        if (!doc.exists) {
+          await db.collection('users').doc(user.uid).set({
+            studioName: user.displayName,
+            studioPhoto: user.photoURL,
+            email: user.email,
+            createdAt: new Date()
+          });
+        }
+        location.reload();
+      }).catch(err => alert("Login gagal: " + err.message));
+    });
+
+    function logout() {
+      auth.signOut().then(() => location.reload());
+    }
+
+    async function updateProfile() {
+      const user = auth.currentUser;
+      const newName = document.getElementById('custom-name').value;
+      const photoInput = document.getElementById('custom-photo');
+      let newPhotoURL = "";
+
+      if (photoInput.files.length > 0) {
+        const file = photoInput.files[0];
+        const ref = storage.ref().child('profilePhotos/' + user.uid + '-' + file.name);
+        await ref.put(file);
+        newPhotoURL = await ref.getDownloadURL();
+      }
+
+      const finalPhoto = newPhotoURL || document.getElementById('user-photo').src;
+
+      await db.collection('users').doc(user.uid).set({
+        studioName: newName,
+        studioPhoto: finalPhoto
+      }, { merge: true });
+
+      document.getElementById('user-name').innerText = newName;
+      document.getElementById('user-photo').src = finalPhoto;
+      alert("Profil berhasil diperbarui!");
+    }
+
+    async function uploadMap() {
+  const user = auth.currentUser;
+  if (!user) return alert("Silakan login dulu sebelum upload.");
+
+  const title = document.getElementById('title').value;
+  const gunung = document.getElementById('gunung').value;
+  const provinsi = document.getElementById('provinsi').value;
+  const deskripsi = document.getElementById('deskripsi').value;
+  const robloxLink = document.getElementById('robloxLink').value;
+
+  const iconFile = document.getElementById('iconImage').files[0];
+  const screenshots = document.getElementById('screenshots').files;
+
+  if (!iconFile) return alert("Pilih gambar icon gunung!");
+  if (screenshots.length === 0) return alert("Pilih minimal 1 screenshot!");
+
+  // Upload icon gunung
+  const iconRef = storage.ref().child('mapIcons/' + Date.now() + '-' + iconFile.name);
+  await iconRef.put(iconFile);
+  const iconURL = await iconRef.getDownloadURL();
+
+  // Upload screenshots
+  const screenshotURLs = [];
+  for (const file of screenshots) {
+    const ssRef = storage.ref().child('mapScreenshots/' + Date.now() + '-' + file.name);
+    await ssRef.put(file);
+    const url = await ssRef.getDownloadURL();
+    screenshotURLs.push(url);
+  }
+
+  const userDoc = await db.collection('users').doc(user.uid).get();
+  const studioName = userDoc.exists ? userDoc.data().studioName : user.displayName;
+  const studioPhoto = userDoc.exists ? userDoc.data().studioPhoto : user.photoURL;
+
+  await db.collection("maps").add({
+    title,
+    gunung,
+    provinsi,
+    description: deskripsi,
+    robloxLink,
+    iconURL,
+    screenshotURLs,
+    createdAt: new Date(),
+    createdBy: user.uid,
+    studioName,
+    studioPhoto
+  });
+
+  alert("Map berhasil diupload!");
+}
+
+    async function loadUserMaps(uid) {
+  const container = document.getElementById('user-maps');
+  container.innerHTML = "Loading...";
+  const snapshot = await db.collection('maps').where('createdBy', '==', uid).get();
+  container.innerHTML = "";
+  snapshot.forEach(doc => {
+    const data = doc.data();
+    const div = document.createElement('div');
+    div.className = 'map-item';
+    div.innerHTML = `
+      <div class="map-top">
+        <img src="${data.iconURL}" alt="map icon" />
+        <div class="map-info">
+          <h3>${data.title}</h3>
+          <p><strong>Gunung:</strong> ${data.gunung}</p>
+          <p><strong>Provinsi:</strong> ${data.provinsi}</p>
+          <p>${data.description}</p>
+          <a href="${data.robloxLink}" target="_blank">🔗 Lihat Map di Roblox</a>
+        </div>
+      </div>
+      <div class="map-screenshots">
+        ${data.screenshotURLs.map(url => `<img src="${url}" alt="Screenshot">`).join('')}
+      </div>
+      <div class="map-actions">
+        <button onclick="deleteMap('${doc.id}')">🗑️ Hapus</button>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+    async function deleteMap(mapId) {
+      if (confirm("Yakin ingin menghapus map ini?")) {
+        await db.collection("maps").doc(mapId).delete();
+        const user = auth.currentUser;
+        loadUserMaps(user.uid);
+      }
+    }
+  </script>
+</body>
+</html>
