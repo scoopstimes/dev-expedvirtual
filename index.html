@@ -114,7 +114,7 @@ button:hover {
 </head>
 <body>
   <header>
-    <h1>Exped Map</h1>
+    <h1>Exped Map for Developer</h1>
     <p>Platform Pemetaan Gunung Indonesia di Roblox</p>
   </header>
   <div class="container">
@@ -130,7 +130,7 @@ button:hover {
       </div>
     </div>
 
-<h2>Upload Map Gunung</h2>
+<h2>Upload Map Anda</h2>
 <input type="text" id="title" placeholder="Judul Map" />
 <input type="text" id="gunung" placeholder="Nama Gunung" />
 <input type="text" id="provinsi" placeholder="Provinsi" />
@@ -145,7 +145,7 @@ button:hover {
 <label>Screenshot Gunung (bisa lebih dari 1)</label>
 <input type="file" id="screenshots" accept="image/*" multiple />
 
-<button onclick="uploadMap()">Upload Map</button>
+<button id="submitMapBtn" onclick="uploadMap()">Upload Map</button>
 
     <h2>Map Saya</h2>
     <div id="user-maps"></div>
@@ -282,37 +282,101 @@ button:hover {
   alert("Map berhasil diupload!");
 }
 
-    async function loadUserMaps(uid) {
-  const container = document.getElementById('user-maps');
-  container.innerHTML = "Loading...";
-  const snapshot = await db.collection('maps').where('createdBy', '==', uid).get();
-  container.innerHTML = "";
-  snapshot.forEach(doc => {
-    const data = doc.data();
-    const div = document.createElement('div');
-    div.className = 'map-item';
-    div.innerHTML = `
-      <div class="map-top">
-        <img src="${data.iconURL}" alt="map icon" />
-        <div class="map-info">
-          <h3>${data.title}</h3>
-          <p><strong>Gunung:</strong> ${data.gunung}</p>
-          <p><strong>Provinsi:</strong> ${data.provinsi}</p>
-          <p>${data.description}</p>
-          <a href="${data.robloxLink}" target="_blank">🔗 Lihat Map di Roblox</a>
-        </div>
-      </div>
-      <div class="map-screenshots">
-        ${data.screenshotURLs.map(url => `<img src="${url}" alt="Screenshot">`).join('')}
-      </div>
-      <div class="map-actions">
-        <button onclick="deleteMap('${doc.id}')">🗑️ Hapus</button>
-      </div>
-    `;
-    container.appendChild(div);
-  });
-}
+    let editingMapId = null;
 
+    function editMap(mapId, data) {
+      document.getElementById('title').value = data.title;
+      document.getElementById('gunung').value = data.gunung;
+      document.getElementById('provinsi').value = data.provinsi;
+      document.getElementById('deskripsi').value = data.description;
+      document.getElementById('robloxLink').value = data.robloxLink;
+      editingMapId = mapId;
+      document.getElementById('submitMapBtn').innerText = "Update Map";
+      document.getElementById('submitMapBtn').onclick = updateMap;
+    }
+
+    async function updateMap() {
+      const user = auth.currentUser;
+      if (!user || !editingMapId) return alert("Gagal update.");
+
+      const title = document.getElementById('title').value;
+      const gunung = document.getElementById('gunung').value;
+      const provinsi = document.getElementById('provinsi').value;
+      const deskripsi = document.getElementById('deskripsi').value;
+      const robloxLink = document.getElementById('robloxLink').value;
+      const iconFile = document.getElementById('iconImage').files[0];
+      const screenshots = document.getElementById('screenshots').files;
+
+      const ref = db.collection('maps').doc(editingMapId);
+      const doc = await ref.get();
+      const dataLama = doc.data();
+
+      let iconURL = dataLama.iconURL;
+      if (iconFile) {
+        const iconRef = storage.ref().child('mapIcons/' + Date.now() + '-' + iconFile.name);
+        await iconRef.put(iconFile);
+        iconURL = await iconRef.getDownloadURL();
+      }
+
+      let screenshotURLs = dataLama.screenshotURLs;
+      if (screenshots.length > 0) {
+        screenshotURLs = [];
+        for (const file of screenshots) {
+          const ssRef = storage.ref().child('mapScreenshots/' + Date.now() + '-' + file.name);
+          await ssRef.put(file);
+          const url = await ssRef.getDownloadURL();
+          screenshotURLs.push(url);
+        }
+      }
+
+      await ref.update({
+        title, gunung, provinsi,
+        description: deskripsi,
+        robloxLink, iconURL, screenshotURLs,
+        updatedAt: new Date()
+      });
+
+      alert("Map berhasil diperbarui!");
+      location.reload();
+    }
+
+    async function loadUserMaps(uid) {
+      const container = document.getElementById('user-maps');
+      container.innerHTML = "Loading...";
+      const snapshot = await db.collection('maps').where('createdBy', '==', uid).get();
+      container.innerHTML = "";
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const div = document.createElement('div');
+        div.className = 'map-item';
+        div.innerHTML = ` <div class="map-top">
+            <img src="${data.iconURL}" alt="map icon" />
+            <div class="map-info">
+              <h3>${data.title}</h3>
+              <p><strong>Gunung:</strong> ${data.gunung}</p>
+              <p><strong>Provinsi:</strong> ${data.provinsi}</p>
+              <p>${data.description}</p>
+              <a href="${data.robloxLink}" target="_blank">🔗 Lihat Map di Roblox</a>
+            </div>
+          </div>
+          <div class="map-screenshots">
+            ${data.screenshotURLs.map(url => `<img src="${url}" alt="Screenshot">`).join('')}
+          </div>
+          <div class="map-actions">
+            <button onclick="editMap('${doc.id}', ${JSON.stringify({
+              title: data.title,
+              gunung: data.gunung,
+              provinsi: data.provinsi,
+              description: data.description,
+              robloxLink: data.robloxLink,
+              iconURL: data.iconURL,
+              screenshotURLs: data.screenshotURLs
+            }).replace(/"/g, '&quot;')})">✏️ Edit</button>
+     <button onclick="deleteMap('${doc.id}')">🗑️ Hapus</button>
+          </div> `;
+        container.appendChild(div);
+      });
+    }
     async function deleteMap(mapId) {
       if (confirm("Yakin ingin menghapus map ini?")) {
         await db.collection("maps").doc(mapId).delete();
