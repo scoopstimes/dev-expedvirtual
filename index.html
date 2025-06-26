@@ -134,6 +134,7 @@ button:hover {
 <input type="text" id="title" placeholder="Judul Map" />
 <input type="text" id="gunung" placeholder="Nama Gunung" />
 <input type="text" id="provinsi" placeholder="Provinsi" />
+<input type="text" id="developer" placeholder="Developer" />
 <textarea id="deskripsi" placeholder="Deskripsi Singkat"></textarea>
 <input type="text" id="robloxLink" placeholder="Link Roblox Map" />
 
@@ -240,7 +241,7 @@ button:hover {
   const provinsi = document.getElementById('provinsi').value;
   const deskripsi = document.getElementById('deskripsi').value;
   const robloxLink = document.getElementById('robloxLink').value;
-
+const developerName = document.getElementById('developer').value;
   const iconFile = document.getElementById('iconImage').files[0];
   const screenshots = document.getElementById('screenshots').files;
 
@@ -275,7 +276,7 @@ button:hover {
     screenshotURLs,
     createdAt: new Date(),
     createdBy: user.uid,
-    studioName,
+    studioName: developerName,
     studioPhoto
   });
 
@@ -289,6 +290,7 @@ button:hover {
       document.getElementById('gunung').value = data.gunung;
       document.getElementById('provinsi').value = data.provinsi;
       document.getElementById('deskripsi').value = data.description;
+      document.getElementById('developer').value = data.studioName;
       document.getElementById('robloxLink').value = data.robloxLink;
       editingMapId = mapId;
       document.getElementById('submitMapBtn').innerText = "Update Map";
@@ -302,6 +304,7 @@ button:hover {
       const title = document.getElementById('title').value;
       const gunung = document.getElementById('gunung').value;
       const provinsi = document.getElementById('provinsi').value;
+      const developerName = document.getElementById('developer').value;
       const deskripsi = document.getElementById('deskripsi').value;
       const robloxLink = document.getElementById('robloxLink').value;
       const iconFile = document.getElementById('iconImage').files[0];
@@ -332,6 +335,7 @@ button:hover {
       await ref.update({
         title, gunung, provinsi,
         description: deskripsi,
+        studioName: developerName,
         robloxLink, iconURL, screenshotURLs,
         updatedAt: new Date()
       });
@@ -349,15 +353,16 @@ button:hover {
         const data = doc.data();
         const div = document.createElement('div');
         div.className = 'map-item';
-        div.innerHTML = ` <div class="map-top">
+        div.innerHTML = `<div class="map-top">
             <img src="${data.iconURL}" alt="map icon" />
-            <div class="map-info">
-              <h3>${data.title}</h3>
-              <p><strong>Gunung:</strong> ${data.gunung}</p>
-              <p><strong>Provinsi:</strong> ${data.provinsi}</p>
-              <p>${data.description}</p>
-              <a href="${data.robloxLink}" target="_blank">🔗 Lihat Map di Roblox</a>
-            </div>
+<div class="map-info">
+  <h3>${data.title}</h3>
+  <p><strong>Gunung:</strong> ${data.gunung}</p>
+  <p><strong>Provinsi:</strong> ${data.provinsi}</p>
+  <p><strong>Developer:</strong> ${data.studioName}</p>
+  <p>${data.description}</p>
+  <a href="${data.robloxLink}" target="_blank">🔗 Lihat Map di Roblox</a>
+</div>
           </div>
           <div class="map-screenshots">
             ${data.screenshotURLs.map(url => `<img src="${url}" alt="Screenshot">`).join('')}
@@ -366,6 +371,7 @@ button:hover {
             <button onclick="editMap('${doc.id}', ${JSON.stringify({
               title: data.title,
               gunung: data.gunung,
+              studioName: data.studioName,
               provinsi: data.provinsi,
               description: data.description,
               robloxLink: data.robloxLink,
@@ -374,6 +380,7 @@ button:hover {
             }).replace(/"/g, '&quot;')})">✏️ Edit</button>
      <button onclick="deleteMap('${doc.id}')">🗑️ Hapus</button>
           </div> `;
+          
         container.appendChild(div);
       });
     }
